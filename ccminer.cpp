@@ -64,6 +64,10 @@ void cuda_devicereset();
 void cuda_print_devices();
 int cuda_finddevice(char *name);
 
+// #ifndef USE_WRAPNVML
+// #define USE_WRAPNVML 1
+// #endif
+
 #include "nvml.h"
 #ifdef USE_WRAPNVML
 nvml_handle *hnvml = NULL;
@@ -1780,10 +1784,9 @@ static void *miner_thread(void *userdata)
 					nvml_get_tempC(hnvml, device_map[thr_id], &tempC);
 					nvml_get_fanpcnt(hnvml, device_map[thr_id], &fanpcnt);
 					nvml_get_current_clocks(hnvml, device_map[thr_id], &graphics_clock, &mem_clock);
-					//if (nvml_get_power_usage(hnvml, device_map[thr_id], &mwatts) == 0)
-					//    sprintf(gpupowbuf, "%dW", (mwatts / 1000));
+					nvml_get_power_usage(hnvml, device_map[thr_id], &mwatts);
 
-					applog(LOG_INFO, "GPU #%d: %s, %*.f (T=%3dC F=%3d%% C=%d/%d)", device_map[thr_id], device_name[device_map[thr_id]], (hashrate > 1e6) ? 0 : 2, 1e-3 * hashrate, tempC, fanpcnt, graphics_clock, mem_clock);
+					applog(LOG_INFO, "GPU #%d: %s, %*.f (Temp=%3dC Fan=%3d%% Clocks=%d/%d, Power=%dW)", device_map[thr_id], device_name[device_map[thr_id]], (hashrate > 1e6) ? 0 : 2, 1e-3 * hashrate, tempC, fanpcnt, graphics_clock, mem_clock, mwatts/1000);
 				}
 				else
 #endif
