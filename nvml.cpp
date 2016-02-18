@@ -141,6 +141,8 @@ nvml_handle * nvml_create()
 	nvmlh->nvmlDeviceGetFanSpeed = (nvmlReturn_t (*)(nvmlDevice_t, uint32_t *))
 		wrap_dlsym(nvmlh->nvml_dll, "nvmlDeviceGetFanSpeed");
 	nvmlh->nvmlDeviceGetPerformanceState = (nvmlReturn_t (*)(nvmlDevice_t, int *))
+		wrap_dlsym(nvmlh->nvml_dll, "nvmlDeviceGetPerformanceState");
+	nvmlh->nvmlDeviceGetPowerUsage = (nvmlReturn_t (*)(nvmlDevice_t, uint32_t *))
 		wrap_dlsym(nvmlh->nvml_dll, "nvmlDeviceGetPowerUsage");
 	nvmlh->nvmlDeviceGetSerial = (nvmlReturn_t (*)(nvmlDevice_t, char *, uint32_t))
 		wrap_dlsym(nvmlh->nvml_dll, "nvmlDeviceGetSerial");
