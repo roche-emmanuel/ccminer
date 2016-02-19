@@ -1383,7 +1383,6 @@ __global__ __launch_bounds__(TPB2, 1) void neoscrypt_gpu_hash_start(int stratum,
 
 }
 
-
 __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_chacha1_stream1(int threads, uint32_t startNonce)
 {
 
@@ -1438,7 +1437,7 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_chacha2_stream1(int
 
 }
 
-__global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int threads, uint32_t startNonce)
+__global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_orig(int threads, uint32_t startNonce)
 {
 	int thread = (blockDim.x * blockIdx.x + threadIdx.x);
 
@@ -1450,6 +1449,35 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 	#pragma unroll
 	for (int i = 0; i < 8; i++)
 		Z[i] = __ldg4(&(Input + shiftTr)[i]);
+
+// #pragma nounroll
+	#pragma unroll
+	for (int i = 0; i < 128; ++i)
+	{
+		for (int j = 0; j < 8; j++)
+			(W2 + shift + i * 8)[j] = Z[j];
+		neoscrypt_salsa((uint16*)Z);
+	}
+
+	#pragma unroll
+	for (int i = 0; i < 8; i++)
+		(Tr2 + shiftTr)[i] = Z[i];
+}
+
+__global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int threads, uint32_t startNonce)
+{
+	int thread = (blockDim.x * blockIdx.x + threadIdx.x);
+
+	int shift = SHIFT * 8 * thread;
+	int shiftTr = 8 * thread;
+
+	vectypeS Z[8];
+
+	#pragma unroll
+	// for (int i = 0; i < 8; i++)
+	// 	Z[i] = __ldg4(&(Input + shiftTr)[i]);
+	for (int i = 0; i < 8; i++)
+		Z[i] = (Input + shiftTr)[i];
 
 // #pragma nounroll
 	#pragma unroll
