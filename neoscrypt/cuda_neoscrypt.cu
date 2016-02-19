@@ -1464,6 +1464,54 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_orig
 		(Tr2 + shiftTr)[i] = Z[i];
 }
 
+static __device__ __inline__ void __copy16(uint4 *dest, const uint4 *src)
+{
+	// uint4 a = {1,2,3,4};
+	// uint4 b;
+
+	// asm("ld.local.cs.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(b.x), "=r"(b.y), "=r"(b.z), "=r"(b.w) : "l"(&(a.x)));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(b.x), "=r"(b.y), "=r"(b.z), "=r"(b.w) : "l"(&(a.x)));
+
+	asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[0].x), "=r"(dest[0].y), "=r"(dest[0].z), "=r"(dest[0].w) : "l"(src));
+
+	dest++;
+	src++;
+	
+	for(int i=1;i<16;++i)
+		(*dest++) = (*src++);
+
+	// dest[0] = src[0];
+	// dest[1] = src[1];
+	// dest[2] = src[2];
+	// dest[3] = src[3];
+	// dest[4] = src[4];
+	// dest[5] = src[5];
+	// dest[6] = src[6];
+	// dest[7] = src[7];
+
+	// uint28 ret;
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[0].x.x), "=r"(dest[0].x.y), "=r"(dest[0].y.x), "=r"(dest[0].y.y) : __LDG_PTR(src));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4+16];" : "=r"(dest[0].z.x), "=r"(dest[0].z.y), "=r"(dest[0].w.x), "=r"(dest[0].w.y) : __LDG_PTR(src));
+	// dest[0] = ret;
+
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[1].x.x), "=r"(dest[1].x.y), "=r"(dest[1].y.x), "=r"(dest[1].y.y) : __LDG_PTR(src+1));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4+16];" : "=r"(dest[1].z.x), "=r"(dest[1].z.y), "=r"(dest[1].w.x), "=r"(dest[1].w.y) : __LDG_PTR(src+1));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[2].x.x), "=r"(dest[2].x.y), "=r"(dest[2].y.x), "=r"(dest[2].y.y) : __LDG_PTR(src+2));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4+16];" : "=r"(dest[2].z.x), "=r"(dest[2].z.y), "=r"(dest[2].w.x), "=r"(dest[2].w.y) : __LDG_PTR(src+2));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[3].x.x), "=r"(dest[3].x.y), "=r"(dest[3].y.x), "=r"(dest[3].y.y) : __LDG_PTR(src+3));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4+16];" : "=r"(dest[3].z.x), "=r"(dest[3].z.y), "=r"(dest[3].w.x), "=r"(dest[3].w.y) : __LDG_PTR(src+3));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[4].x.x), "=r"(dest[4].x.y), "=r"(dest[4].y.x), "=r"(dest[4].y.y) : __LDG_PTR(src+4));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4+16];" : "=r"(dest[4].z.x), "=r"(dest[4].z.y), "=r"(dest[4].w.x), "=r"(dest[4].w.y) : __LDG_PTR(src+4));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[5].x.x), "=r"(dest[5].x.y), "=r"(dest[5].y.x), "=r"(dest[5].y.y) : __LDG_PTR(src+5));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4+16];" : "=r"(dest[5].z.x), "=r"(dest[5].z.y), "=r"(dest[5].w.x), "=r"(dest[5].w.y) : __LDG_PTR(src+5));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[6].x.x), "=r"(dest[6].x.y), "=r"(dest[6].y.x), "=r"(dest[6].y.y) : __LDG_PTR(src+6));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4+16];" : "=r"(dest[6].z.x), "=r"(dest[6].z.y), "=r"(dest[6].w.x), "=r"(dest[6].w.y) : __LDG_PTR(src+6));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[7].x.x), "=r"(dest[7].x.y), "=r"(dest[7].y.x), "=r"(dest[7].y.y) : __LDG_PTR(src+7));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4+16];" : "=r"(dest[7].z.x), "=r"(dest[7].z.y), "=r"(dest[7].w.x), "=r"(dest[7].w.y) : __LDG_PTR(src+7));
+
+// 	return ret;
+}
+
 __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int threads, uint32_t startNonce)
 {
 	int thread = (blockDim.x * blockIdx.x + threadIdx.x);
@@ -1473,20 +1521,28 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 
 	vectypeS Z[8];
 
-	#pragma unroll
-	for (int i = 0; i < 8; i++)
-		Z[i] = (Input + shiftTr)[i];
+	__copy16((uint4*)Z,(uint4*)(Input+shiftTr));
+
+	// #pragma unroll
+	// for (int i = 0; i < 8; i++)
+	// 	Z[i] = (Input + shiftTr)[i];
 
 // #pragma nounroll
-	#pragma unroll
 	vectypeS* ptr = W2 + shift;
+
+	#pragma unroll
 	for (int i = 0; i < 128; ++i)
 	{
+		#pragma unroll
 		for (int j = 0; j < 8; j++)
 			(*ptr++) = Z[j];
+		// __copy16(ptr,Z);
 		// ptr += 8;
+
 		neoscrypt_salsa((uint16*)Z);
 	}
+
+	// __copy16((uint4*)(Tr2+shiftTr),(uint4*)Z);
 
 	#pragma unroll
 	for (int i = 0; i < 8; i++)
