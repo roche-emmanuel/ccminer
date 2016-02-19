@@ -45,7 +45,7 @@ extern "C" int scanhash_neoscrypt(int stratum, int thr_id, uint32_t *pdata,
 	else if (strstr(props.name, "980"))
 	{
 #if CUDART_VERSION >= 7000
-		intensity = (256 * 64 *10);
+		intensity = (256 * 64 * 11);
 #else
 		intensity = (256 * 64 * 4);
 #endif
