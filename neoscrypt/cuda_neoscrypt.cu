@@ -1474,17 +1474,17 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 	vectypeS Z[8];
 
 	#pragma unroll
-	// for (int i = 0; i < 8; i++)
-	// 	Z[i] = __ldg4(&(Input + shiftTr)[i]);
 	for (int i = 0; i < 8; i++)
 		Z[i] = (Input + shiftTr)[i];
 
 // #pragma nounroll
 	#pragma unroll
+	vectypeS* ptr = W2 + shift;
 	for (int i = 0; i < 128; ++i)
 	{
 		for (int j = 0; j < 8; j++)
-			(W2 + shift + i * 8)[j] = Z[j];
+			(*ptr++) = Z[j];
+		// ptr += 8;
 		neoscrypt_salsa((uint16*)Z);
 	}
 
