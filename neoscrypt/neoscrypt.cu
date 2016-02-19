@@ -45,7 +45,7 @@ extern "C" int scanhash_neoscrypt(int stratum, int thr_id, uint32_t *pdata,
 	else if (strstr(props.name, "980"))
 	{
 #if CUDART_VERSION >= 7000
-		intensity = (256 * 64 * 5);
+		intensity = (256 * 64 *10);
 #else
 		intensity = (256 * 64 * 4);
 #endif
@@ -67,7 +67,11 @@ extern "C" int scanhash_neoscrypt(int stratum, int thr_id, uint32_t *pdata,
 		intensity = (256 * 64 * 3.5);
 	}
 
+	applog(LOG_INFO, "Using device intensity: %d", intensity);
+
 	uint32_t throughput = device_intensity(device_map[thr_id], __func__, intensity) / 2;
+
+	applog(LOG_INFO, "Using device throughput: %d", throughput);
 
 	// throughput = min(throughput, (max_nonce - first_nonce));
 
