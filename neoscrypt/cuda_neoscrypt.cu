@@ -1447,19 +1447,22 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 
 	vectypeS Z[8];
 
+	#pragma unroll
 	for (int i = 0; i < 8; i++)
 		Z[i] = __ldg4(&(Input + shiftTr)[i]);
 
-#pragma nounroll
+// #pragma nounroll
+	#pragma unroll
 	for (int i = 0; i < 128; ++i)
 	{
 		for (int j = 0; j < 8; j++)
 			(W2 + shift + i * 8)[j] = Z[j];
 		neoscrypt_salsa((uint16*)Z);
 	}
+
+	#pragma unroll
 	for (int i = 0; i < 8; i++)
 		(Tr2 + shiftTr)[i] = Z[i];
-
 }
 
 __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa2_stream1(int threads, uint32_t startNonce)
@@ -1534,9 +1537,7 @@ void neoscrypt_cpu_init_2stream(int thr_id, int threads, uint32_t *hash, uint32_
 	cudaMemcpyToSymbol(Tr2, &Trans2, sizeof(Trans2), 0, cudaMemcpyHostToDevice);
 	cudaMemcpyToSymbol(Input, &Trans3, sizeof(Trans3), 0, cudaMemcpyHostToDevice);
 
-
 	cudaMalloc(&d_NNonce[thr_id], sizeof(uint32_t));
-
 }
 
 
