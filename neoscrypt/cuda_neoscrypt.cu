@@ -1349,10 +1349,10 @@ static __forceinline__ __device__ void fastkdf32_v3(int thread, const  uint32_t 
 
 
 #if CUDART_VERSION >= 7000
-#define SHIFT 130
+#define SHIFT 128
 #define TPB 128
 #else
-#define SHIFT 130
+#define SHIFT 128
 #define TPB 64
 #endif
 #define TPB2 128
@@ -1547,10 +1547,11 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 {
 	int thread = (blockDim.x * blockIdx.x + threadIdx.x);
 
+	// Now we try to process 2 of those blocks at the same time:
 	int shift = SHIFT * 8 * thread;
 	int shiftTr = 8 * thread;
 
-	vectypeS Z[8];
+	uint4 Z[16];
 
 	__copy16((uint4*)Z,(uint4*)(Input+shiftTr));
 
@@ -1559,13 +1560,13 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 	// 	Z[i] = (Input + shiftTr)[i];
 
 // #pragma nounroll
-	vectypeS* ptr = W2 + shift;
+	uint4* ptr = (uint4*)(W2 + shift);
 
 	#pragma unroll
 	for (int i = 0; i < 128; ++i)
 	{
 		#pragma unroll
-		for (int j = 0; j < 8; j++)
+		for (int j = 0; j < 16; j++)
 			(*ptr++) = Z[j];
 		// __copy16(ptr,Z);
 		// ptr += 8;
@@ -1576,8 +1577,9 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 	// __copy16((uint4*)(Tr2+shiftTr),(uint4*)Z);
 
 	#pragma unroll
-	for (int i = 0; i < 8; i++)
-		(Tr2 + shiftTr)[i] = Z[i];
+	ptr = (uint4*)(Tr2 + shiftTr);
+	for (int i = 0; i < 16; i++)
+		(*ptr++) = Z[i];
 }
 
 __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa2_stream1(int threads, uint32_t startNonce)
