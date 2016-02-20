@@ -84,14 +84,8 @@ extern "C" int scanhash_neoscrypt(int stratum, int thr_id, uint32_t *pdata,
 		//		cudaSetDeviceFlags(cudaStreamNonBlocking);
 //		cudaSetDeviceFlags(cudaDeviceScheduleBlockingSync);
 		cudaDeviceSetCacheConfig(cudaFuncCachePreferL1);
-#if CUDART_VERSION >= 7000
-		CUDA_SAFE_CALL(cudaMalloc(&d_hash1[thr_id], 32 * 130 * sizeof(uint64_t) * throughput));
-		CUDA_SAFE_CALL(cudaMalloc(&d_hash2[thr_id], 32 * 130 * sizeof(uint64_t) * throughput));
-#else
-		CUDA_SAFE_CALL(cudaMalloc(&d_hash1[thr_id], 32 * 130 * sizeof(uint64_t) * throughput));
-		CUDA_SAFE_CALL(cudaMalloc(&d_hash2[thr_id], 32 * 130 * sizeof(uint64_t) * throughput));
-#endif
-
+		CUDA_SAFE_CALL(cudaMalloc(&d_hash1[thr_id], 32 * 128 * sizeof(uint64_t) * throughput));
+		CUDA_SAFE_CALL(cudaMalloc(&d_hash2[thr_id], 32 * 128 * sizeof(uint64_t) * throughput));
 		CUDA_SAFE_CALL(cudaMalloc(&t_hash1[thr_id], 32 * sizeof(uint64_t) * throughput));
 		CUDA_SAFE_CALL(cudaMalloc(&t_hash2[thr_id], 32 * sizeof(uint64_t) * throughput));
 		CUDA_SAFE_CALL(cudaMalloc(&test[thr_id], 32 * sizeof(uint64_t) * throughput));
