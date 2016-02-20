@@ -1472,12 +1472,43 @@ static __device__ __inline__ void __copy16(uint4 *dest, const uint4 *src)
 	// asm("ld.local.cs.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(b.x), "=r"(b.y), "=r"(b.z), "=r"(b.w) : "l"(&(a.x)));
 	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(b.x), "=r"(b.y), "=r"(b.z), "=r"(b.w) : "l"(&(a.x)));
 
-	asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[0].x), "=r"(dest[0].y), "=r"(dest[0].z), "=r"(dest[0].w) : "l"(src));
+	// asm volatile ("{\n\t"
+	// 	".reg .u32 a,b,c,d; \n\t"
+	// 	"ld.global.nc.v4.u32 {a,b,c,d}, [%1]; \n\t"
+	// 	"mov.u32 [%0], a; \n\t"
+	// 	"mov.u32 [%0+1], b; \n\t"
+	// 	"mov.u32 [%0+2], c; \n\t"
+	// 	"mov.u32 [%0+3], d; \n\t"
+	// 	"}"
+	// 	: "=l"((uint*)dest) : "l"(src));
+	// uint* sptr = (uint*)src;
+	// uint* dptr = (uint*)dest;
+	uint* sptr = (uint*)src;
+	uint64_t* dptr = (uint64_t*)dest;
 
-	dest++;
-	src++;
-	
-	for(int i=1;i<16;++i)
+	// asm volatile ("{\n\t"
+	// 	".reg .u64 a,b; \n\t"
+	// 	"ld.global.nc.v2.u64 {a,b}, [%1]; \n\t"
+	// 	"st.local.cs.v2.u64 [%0], {a,b}; \n\t"
+	// 	"}"
+	// : "=l"(dptr) : "l"(sptr) );
+
+	asm("ld.global.nc.v2.u64 {%0,%1}, [%2];"  : "=l"(dptr[0]), "=l"(dptr[1]) : "l"(src+0));
+	asm("ld.global.nc.v2.u64 {%0,%1}, [%2];"  : "=l"(dptr[2]), "=l"(dptr[3]) : "l"(src+1));
+
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[0].x), "=r"(dest[0].y), "=r"(dest[0].z), "=r"(dest[0].w) : "l"(src+0));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[1].x), "=r"(dest[1].y), "=r"(dest[1].z), "=r"(dest[1].w) : "l"(src+1));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[2].x), "=r"(dest[2].y), "=r"(dest[2].z), "=r"(dest[2].w) : "l"(src+2));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[3].x), "=r"(dest[3].y), "=r"(dest[3].z), "=r"(dest[3].w) : "l"(src+3));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[4].x), "=r"(dest[4].y), "=r"(dest[4].z), "=r"(dest[4].w) : "l"(src+4));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[5].x), "=r"(dest[5].y), "=r"(dest[5].z), "=r"(dest[5].w) : "l"(src+5));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[6].x), "=r"(dest[6].y), "=r"(dest[6].z), "=r"(dest[6].w) : "l"(src+6));
+	// asm("ld.global.nc.v4.u32 {%0,%1,%2,%3}, [%4];"  : "=r"(dest[7].x), "=r"(dest[7].y), "=r"(dest[7].z), "=r"(dest[7].w) : "l"(src+7));
+
+	dest+=2;
+	src+=2;
+
+	for(int i=2;i<16;++i)
 		(*dest++) = (*src++);
 
 	// dest[0] = src[0];
