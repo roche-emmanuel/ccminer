@@ -805,7 +805,7 @@ static __forceinline__ __device__ uint16 salsa_small_scalar_rnd(const uint16 &X)
 	uint16 state = X;
 	uint32_t t;
 
-#pragma unroll 1
+	#pragma unroll 1
 	for (int i = 0; i < 10; ++i) { SALSA_CORE(state);}
 
 	return (X + state);
@@ -850,7 +850,6 @@ static __device__ __forceinline__ void neoscrypt_salsa(uint16 *XV)
 	XV[3] ^= XV[1];
 	XV[3] = salsa_small_scalar_rnd(XV[3]);
 	XV[2] = temp;
-
 }
 
 
@@ -1576,10 +1575,78 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 
 	// __copy16((uint4*)(Tr2+shiftTr),(uint4*)Z);
 
-	#pragma unroll
 	ptr = (uint4*)(Tr2 + shiftTr);
+	#pragma unroll
 	for (int i = 0; i < 16; i++)
 		(*ptr++) = Z[i];
+}
+
+#define BSIZE 32
+
+__global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_opt(int threads, uint32_t startNonce)
+{
+
+	int ioffset = BSIZE * 64 * blockIdx.x;
+	int woffset = BSIZE * SHIFT * 64 * blockIdx.x;
+
+	int x = threadIdx.x;
+
+	// Input is provided as uint28 pointer, each uint28 is 2*uint4 = 8 uint
+	// so if the stride is 8 uint28, then it is 8x8=64 uint
+	// Same result for the shift: if it is 8 uint28, then this is 64 uint:
+
+	// int shiftTr = 64 * offset;
+	// int shift = SHIFT * 64 * offset;
+	
+	uint* iPtr = ((uint*)Input)+ioffset;
+
+	// Prepare the buffer containing all the input rows:
+	// Z rows contain 8 uint28, and thus 64 uint, to avoid memory bank conflits
+	// We add 1 to this size:
+	__shared__ uint Z[BSIZE][64+1];
+
+	// Fill the input array:
+	for(int j=0;j<BSIZE;++j)
+	{
+		Z[j][x] = iPtr[j*64 + x];
+		Z[j][32+x] = iPtr[j*64 + 32 + x];
+	}
+
+	// Need to synchronize the threads:
+	__syncthreads();
+
+	// #pragma nounroll
+	uint* dPtr = ((uint*)W2) + woffset;
+
+	#pragma unroll
+	for (int i = 0; i < 128; ++i)
+	{
+		for(int j=0;j<BSIZE;++j)
+		{
+			dPtr[i*64 + j*SHIFT*64 + x] = Z[j][x];
+			dPtr[i*64 + j*SHIFT*64 + 32 + x] = Z[j][32 + x];
+		}
+		__syncthreads();
+
+		// #pragma unroll
+		// for (int j = 0; j < 16; j++)
+		// 	(*ptr++) = Z[j];
+		// __copy16(ptr,Z);
+		// ptr += 8;
+
+		neoscrypt_salsa((uint16*)Z[x]);
+	}
+
+	// Copy the final data in to the Tr2 buffer:
+	dPtr = ((uint*)Tr2)+ioffset;
+	for(int j=0;j<BSIZE;++j)
+	{
+		dPtr[j*64 + x] = Z[j][x];
+		dPtr[j*64 + 32 + x] = Z[j][32 + x];
+	}
+
+	// __syncthreads();
+	// No need to sync the threads here: we are done.
 }
 
 __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa2_stream1(int threads, uint32_t startNonce)
@@ -1667,8 +1734,6 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 
 
 	const int threadsperblock = TPB;
-
-
 	dim3 grid((threads + threadsperblock - 1) / threadsperblock);
 	dim3 block(threadsperblock);
 
@@ -1676,6 +1741,9 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 	dim3 grid2((threads + threadsperblock2 - 1) / threadsperblock2);
 	dim3 block2(threadsperblock2);
 
+	const int threadsperblock3 = BSIZE;
+	dim3 grid3((threads + threadsperblock3 - 1) / threadsperblock3);
+	dim3 block3(threadsperblock3);
 
 	cudaStream_t stream[2];
 	cudaStreamCreate(&stream[0]);
@@ -1691,7 +1759,9 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 	neoscrypt_gpu_hash_chacha1_stream1 << <grid, block, 0, stream[0] >> >(threads, startNounce); //salsa
 	neoscrypt_gpu_hash_chacha2_stream1 << <grid, block, 0, stream[0] >> >(threads, startNounce); //salsa
 
-	neoscrypt_gpu_hash_salsa1_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
+	// neoscrypt_gpu_hash_salsa1_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
+	// neoscrypt_gpu_hash_salsa1_stream1_orig << <grid3, block3, 0, stream[1] >> >(threads, startNounce); //chacha
+	neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, stream[1] >> >(threads, startNounce); //chacha
 	neoscrypt_gpu_hash_salsa2_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
 
 //	cudaDeviceSynchronize();
