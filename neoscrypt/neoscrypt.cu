@@ -22,7 +22,7 @@ extern void neoscrypt_cpu_init_2stream(int thr_id, int threads, uint32_t* d_hash
 
 
 extern uint32_t neoscrypt_cpu_hash_k4(int stratum, int thr_id, int threads, uint32_t startNounce, int order);
-extern uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int threads, uint32_t startNounce, int order);
+extern uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int threads, uint32_t startNounce, int order, unsigned long long& tres);
 
 extern "C" int scanhash_neoscrypt(int stratum, int thr_id, uint32_t *pdata,
 	const uint32_t *ptarget, uint32_t max_nonce,
@@ -111,9 +111,12 @@ extern "C" int scanhash_neoscrypt(int stratum, int thr_id, uint32_t *pdata,
 
 	neoscrypt_setBlockTarget(endiandata, ptarget);
 
+	unsigned long long tres;
+
 	do {
 		int order = 0;
-		uint32_t foundNonce = neoscrypt_cpu_hash_k4_2stream(stratum, thr_id, throughput, pdata[19], order++);
+		uint32_t foundNonce = neoscrypt_cpu_hash_k4_2stream(stratum, thr_id, throughput, pdata[19], order++,tres);
+
 		//		foundNonce = 10 + pdata[19];
 		if (foundNonce != 0xffffffff)
 		{
@@ -129,6 +132,8 @@ extern "C" int scanhash_neoscrypt(int stratum, int thr_id, uint32_t *pdata,
 				endiandata[19] = foundNonce;
 			}
 			neoscrypt((unsigned char*)endiandata, (unsigned char*)vhash64, 0x80000620);
+
+			// applog(LOG_INFO, "Clock duration: %d", (tres-14)/32);
 
 			if (vhash64[7] <= ptarget[7]) { // && fulltest(vhash64, ptarget)) {
 				pdata[19] = foundNonce;

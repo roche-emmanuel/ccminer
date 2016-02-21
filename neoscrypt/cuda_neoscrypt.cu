@@ -38,6 +38,8 @@ __device__ vectypeS* B2;
 //vectypeS *d_output;
 uint32_t *d_NNonce[MAX_GPUS];
 uint32_t *d_nnounce[MAX_GPUS];
+unsigned long long *d_time[MAX_GPUS];
+
 __constant__  uint32_t pTarget[8];
 __constant__  uint32_t key_init[16];
 __constant__  uint32_t input_init[16];
@@ -1583,8 +1585,9 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 
 #define BSIZE 32
 
-__global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_opt(int threads, uint32_t startNonce)
+__global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_opt(int threads, uint32_t startNonce, unsigned long long* time)
 {
+	// unsigned long long startTime = clock();
 
 	int ioffset = BSIZE * 64 * blockIdx.x;
 	int woffset = BSIZE * SHIFT * 64 * blockIdx.x;
@@ -1613,7 +1616,7 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_opt(
 	}
 
 	// Need to synchronize the threads:
-	__syncthreads();
+	// __syncthreads();
 
 	// #pragma nounroll
 	uint* dPtr = ((uint*)W2) + woffset;
@@ -1626,7 +1629,7 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_opt(
 			dPtr[i*64 + j*SHIFT*64 + x] = Z[j][x];
 			dPtr[i*64 + j*SHIFT*64 + 32 + x] = Z[j][32 + x];
 		}
-		__syncthreads();
+		// __syncthreads();
 
 		// #pragma unroll
 		// for (int j = 0; j < 16; j++)
@@ -1645,8 +1648,11 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_opt(
 		dPtr[j*64 + 32 + x] = Z[j][32 + x];
 	}
 
-	// __syncthreads();
 	// No need to sync the threads here: we are done.
+	// __syncthreads();
+
+	// unsigned long long endTime = clock();
+	// *time = (endTime - startTime);
 }
 
 __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa2_stream1(int threads, uint32_t startNonce)
@@ -1722,12 +1728,13 @@ void neoscrypt_cpu_init_2stream(int thr_id, int threads, uint32_t *hash, uint32_
 	cudaMemcpyToSymbol(Input, &Trans3, sizeof(Trans3), 0, cudaMemcpyHostToDevice);
 
 	cudaMalloc(&d_NNonce[thr_id], sizeof(uint32_t));
+	cudaMalloc(&d_time[thr_id], sizeof(unsigned long long));
 }
 
 
 
 
-__host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int threads, uint32_t startNounce, int order)
+__host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int threads, uint32_t startNounce, int order, unsigned long long &tres)
 {
 	uint32_t result[MAX_GPUS] = { 0xffffffff };
 	cudaMemset(d_NNonce[thr_id], 0xffffffff, sizeof(uint32_t));
@@ -1761,7 +1768,7 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 
 	// neoscrypt_gpu_hash_salsa1_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
 	// neoscrypt_gpu_hash_salsa1_stream1_orig << <grid3, block3, 0, stream[1] >> >(threads, startNounce); //chacha
-	neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, stream[1] >> >(threads, startNounce); //chacha
+	neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, stream[1] >> >(threads, startNounce, d_time[thr_id]); //chacha
 	neoscrypt_gpu_hash_salsa2_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
 
 //	cudaDeviceSynchronize();
@@ -1772,6 +1779,7 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 	MyStreamSynchronize(NULL, order, thr_id);
 	cudaMemcpy(&result[thr_id], d_NNonce[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost);
 
+	cudaMemcpy(&tres, d_time[thr_id], sizeof(unsigned long long), cudaMemcpyDeviceToHost);
 
 	cudaStreamDestroy(stream[0]);
 
