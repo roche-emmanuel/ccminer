@@ -1585,7 +1585,9 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1(int 
 
 #define BSIZE 32
 
-__global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_opt(int threads, uint32_t startNonce, unsigned long long* time)
+// __launch_bounds__(TPB, 1)
+
+__global__  void neoscrypt_gpu_hash_salsa1_stream1_opt(int threads, uint32_t startNonce, unsigned long long* time)
 {
 	// unsigned long long startTime = clock();
 
@@ -1681,6 +1683,43 @@ __global__ __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa2_stream1(int 
 
 }
 
+__global__  __launch_bounds__(TPB, 1) void neoscrypt_gpu_hash_salsa1_stream1_merge(int threads, uint32_t startNonce)
+{
+	int thread = (blockDim.x * blockIdx.x + threadIdx.x);
+
+	int shift = SHIFT * 8 * thread;
+	int shiftTr = 8 * thread;
+	int x = threadIdx.x;
+
+	vectypeS Z[8];
+
+	#pragma unroll
+	for (int i = 0; i < 8; i++)
+		Z[i] = __ldg4(&(Input + shiftTr)[i]);
+
+// #pragma nounroll
+	#pragma unroll
+	for (int i = 0; i < 128; ++i)
+	{
+		for (int j = 0; j < 8; j++)
+			(W2 + shift + i * 8)[j] = Z[j];
+		neoscrypt_salsa((uint16*)Z);
+	}
+
+	#pragma unroll
+	for (int t = 0; t < 128; t++)
+	{
+		int idx = (Z[6].x.x & 0x7F) << 3;
+
+		for (int j = 0; j < 8; j++)
+			Z[j] ^= __ldg4(&(W2 + shift + idx)[j]);
+		neoscrypt_salsa((uint16*)Z);
+	}
+
+	for (int i = 0; i < 8; i++)
+		(Tr2 + shiftTr)[i] = Z[i];  // best checked
+}
+
 
 
 __global__ __launch_bounds__(TPB2, 1) void neoscrypt_gpu_hash_ending(int stratum, int threads, uint32_t startNonce, uint32_t *nonceVector)
@@ -1731,7 +1770,15 @@ void neoscrypt_cpu_init_2stream(int thr_id, int threads, uint32_t *hash, uint32_
 	cudaMalloc(&d_time[thr_id], sizeof(unsigned long long));
 }
 
-
+#define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
+inline void gpuAssert(cudaError_t code, const char *file, int line, bool abort=true)
+{
+   if (code != cudaSuccess) 
+   {
+      fprintf(stderr,"GPUassert: %s %s %d\n", cudaGetErrorString(code), file, line);
+      if (abort) exit(code);
+   }
+}
 
 
 __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int threads, uint32_t startNounce, int order, unsigned long long &tres)
@@ -1766,10 +1813,12 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 	neoscrypt_gpu_hash_chacha1_stream1 << <grid, block, 0, stream[0] >> >(threads, startNounce); //salsa
 	neoscrypt_gpu_hash_chacha2_stream1 << <grid, block, 0, stream[0] >> >(threads, startNounce); //salsa
 
+	// neoscrypt_gpu_hash_salsa1_stream1_merge << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
 	// neoscrypt_gpu_hash_salsa1_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
-	// neoscrypt_gpu_hash_salsa1_stream1_orig << <grid3, block3, 0, stream[1] >> >(threads, startNounce); //chacha
-	neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, stream[1] >> >(threads, startNounce, d_time[thr_id]); //chacha
+	neoscrypt_gpu_hash_salsa1_stream1_orig << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
+	// neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, stream[1] >> >(threads, startNounce, d_time[thr_id]); //chacha
 	neoscrypt_gpu_hash_salsa2_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
+	// gpuErrchk( cudaPeekAtLastError() );
 
 //	cudaDeviceSynchronize();
 	cudaStreamDestroy(stream[1]); //will do the synchronization
