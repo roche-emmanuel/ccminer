@@ -172,6 +172,234 @@ static __device__ __inline__ void chacha_step(uint32_t &a, uint32_t &b, uint32_t
 	    "shf.l.wrap.b32 %1, %1, %1, 7; \n\t}"
 	    : "+r"(a), "+r"(b), "+r"(c), "+r"(d));
 }
+
+static __device__ __inline__ void chacha_step3(uint32_t* ptr)
+{
+	asm volatile ("{\n\t"
+		".reg .u32 s0,s1,s2,s3,s4,s5,s6,s7,s8,s9,s10,s11,s12,s13,s14,s15; \n\t"
+		"ld.v4.u32 {s0,s1,s2,s3}, [%0]; \n\t"
+		"ld.v4.u32 {s4,s5,s6,s7}, [%0+16]; \n\t"
+		"ld.v4.u32 {s8,s9,s10,s11}, [%0+32]; \n\t"
+		"ld.v4.u32 {s12,s13,s14,s15}, [%0+48]; \n\t"
+
+		// %0 -> s0
+		// %1 -> s4
+		// %2 -> s8
+		// %3 -> s12
+    "add.u32 s0,s0,s4; \n\t"
+    "xor.b32 s12,s12,s0; \n\t"
+    "prmt.b32 s12, s12, 0, 0x1032; \n\t"
+    "add.u32 s8,s8,s12; \n\t"
+    "xor.b32 s4,s4,s8; \n\t"
+    "shf.l.wrap.b32 s4, s4, s4, 12; \n\t"
+    "add.u32 s0,s0,s4; \n\t"
+    "xor.b32 s12,s12,s0; \n\t"
+    "prmt.b32 s12, s12, 0, 0x2103; \n\t"
+    "add.u32 s8,s8,s12; \n\t"
+    "xor.b32 s4,s4,s8; \n\t"
+    "shf.l.wrap.b32 s4, s4, s4, 7; \n\t"
+
+
+    "st.v4.u32  [%0], {s0,s1,s2,s3}; \n\t"
+    "st.v4.u32  [%0+16], {s4,s5,s6,s7}; \n\t"
+    "st.v4.u32  [%0+32], {s8,s9,s10,s11}; \n\t"
+    "st.v4.u32  [%0+48], {s12,s13,s14,s15}; \n\t"
+    "}"
+    :: "l"(ptr));
+}
+
+static __device__ __inline__ void chacha_step4(uint32_t* X)
+{
+	asm volatile ("{\n\t"
+
+		// %0 -> %0
+		// %1 -> %4
+		// %2 -> %8
+		// %3 -> %12
+    "add.u32 %0,%0,%4; \n\t"
+    "xor.b32 %12,%12,%0; \n\t"
+    "prmt.b32 %12, %12, 0, 0x1032; \n\t"
+    "add.u32 %8,%8,%12; \n\t"
+    "xor.b32 %4,%4,%8; \n\t"
+    "shf.l.wrap.b32 %4, %4, %4, 12; \n\t"
+    "add.u32 %0,%0,%4; \n\t"
+    "xor.b32 %12,%12,%0; \n\t"
+    "prmt.b32 %12, %12, 0, 0x2103; \n\t"
+    "add.u32 %8,%8,%12; \n\t"
+    "xor.b32 %4,%4,%8; \n\t"
+    "shf.l.wrap.b32 %4, %4, %4, 7; \n\t"
+
+		// %0 -> %1
+		// %1 -> %5
+		// %2 -> %9
+		// %3 -> %13
+    "add.u32 %1,%1,%5; \n\t"
+    "xor.b32 %13,%13,%1; \n\t"
+    "prmt.b32 %13, %13, 0, 0x1032; \n\t"
+    "add.u32 %9,%9,%13; \n\t"
+    "xor.b32 %5,%5,%9; \n\t"
+    "shf.l.wrap.b32 %5, %5, %5, 12; \n\t"
+    "add.u32 %1,%1,%5; \n\t"
+    "xor.b32 %13,%13,%1; \n\t"
+    "prmt.b32 %13, %13, 0, 0x2103; \n\t"
+    "add.u32 %9,%9,%13; \n\t"
+    "xor.b32 %5,%5,%9; \n\t"
+    "shf.l.wrap.b32 %5, %5, %5, 7; \n\t"
+
+		// %0 -> %2
+		// %1 -> %6
+		// %2 -> %10
+		// %3 -> %14
+    "add.u32 %2,%2,%6; \n\t"
+    "xor.b32 %14,%14,%2; \n\t"
+    "prmt.b32 %14, %14, 0, 0x1032; \n\t"
+    "add.u32 %10,%10,%14; \n\t"
+    "xor.b32 %6,%6,%10; \n\t"
+    "shf.l.wrap.b32 %6, %6, %6, 12; \n\t"
+    "add.u32 %2,%2,%6; \n\t"
+    "xor.b32 %14,%14,%2; \n\t"
+    "prmt.b32 %14, %14, 0, 0x2103; \n\t"
+    "add.u32 %10,%10,%14; \n\t"
+    "xor.b32 %6,%6,%10; \n\t"
+    "shf.l.wrap.b32 %6, %6, %6, 7; \n\t"
+
+		// %0 -> %3
+		// %1 -> %7
+		// %2 -> %11
+		// %3 -> %15
+    "add.u32 %3,%3,%7; \n\t"
+    "xor.b32 %15,%15,%3; \n\t"
+    "prmt.b32 %15, %15, 0, 0x1032; \n\t"
+    "add.u32 %11,%11,%15; \n\t"
+    "xor.b32 %7,%7,%11; \n\t"
+    "shf.l.wrap.b32 %7, %7, %7, 12; \n\t"
+    "add.u32 %3,%3,%7; \n\t"
+    "xor.b32 %15,%15,%3; \n\t"
+    "prmt.b32 %15, %15, 0, 0x2103; \n\t"
+    "add.u32 %11,%11,%15; \n\t"
+    "xor.b32 %7,%7,%11; \n\t"
+    "shf.l.wrap.b32 %7, %7, %7, 7; \n\t"
+
+		// %0 -> %0
+		// %1 -> %5
+		// %2 -> %10
+		// %3 -> %15
+    "add.u32 %0,%0,%5; \n\t"
+    "xor.b32 %15,%15,%0; \n\t"
+    "prmt.b32 %15, %15, 0, 0x1032; \n\t"
+    "add.u32 %10,%10,%15; \n\t"
+    "xor.b32 %5,%5,%10; \n\t"
+    "shf.l.wrap.b32 %5, %5, %5, 12; \n\t"
+    "add.u32 %0,%0,%5; \n\t"
+    "xor.b32 %15,%15,%0; \n\t"
+    "prmt.b32 %15, %15, 0, 0x2103; \n\t"
+    "add.u32 %10,%10,%15; \n\t"
+    "xor.b32 %5,%5,%10; \n\t"
+    "shf.l.wrap.b32 %5, %5, %5, 7; \n\t"
+
+		// %0 -> %1
+		// %1 -> %6
+		// %2 -> %11
+		// %3 -> %12
+    "add.u32 %1,%1,%6; \n\t"
+    "xor.b32 %12,%12,%1; \n\t"
+    "prmt.b32 %12, %12, 0, 0x1032; \n\t"
+    "add.u32 %11,%11,%12; \n\t"
+    "xor.b32 %6,%6,%11; \n\t"
+    "shf.l.wrap.b32 %6, %6, %6, 12; \n\t"
+    "add.u32 %1,%1,%6; \n\t"
+    "xor.b32 %12,%12,%1; \n\t"
+    "prmt.b32 %12, %12, 0, 0x2103; \n\t"
+    "add.u32 %11,%11,%12; \n\t"
+    "xor.b32 %6,%6,%11; \n\t"
+    "shf.l.wrap.b32 %6, %6, %6, 7; \n\t"
+
+		// %0 -> %2
+		// %1 -> %7
+		// %2 -> %8
+		// %3 -> %13
+    "add.u32 %2,%2,%7; \n\t"
+    "xor.b32 %13,%13,%2; \n\t"
+    "prmt.b32 %13, %13, 0, 0x1032; \n\t"
+    "add.u32 %8,%8,%13; \n\t"
+    "xor.b32 %7,%7,%8; \n\t"
+    "shf.l.wrap.b32 %7, %7, %7, 12; \n\t"
+    "add.u32 %2,%2,%7; \n\t"
+    "xor.b32 %13,%13,%2; \n\t"
+    "prmt.b32 %13, %13, 0, 0x2103; \n\t"
+    "add.u32 %8,%8,%13; \n\t"
+    "xor.b32 %7,%7,%8; \n\t"
+    "shf.l.wrap.b32 %7, %7, %7, 7; \n\t"
+
+		// %0 -> %3
+		// %1 -> %4
+		// %2 -> %9
+		// %3 -> %14
+    "add.u32 %3,%3,%4; \n\t"
+    "xor.b32 %14,%14,%3; \n\t"
+    "prmt.b32 %14, %14, 0, 0x1032; \n\t"
+    "add.u32 %9,%9,%14; \n\t"
+    "xor.b32 %4,%4,%9; \n\t"
+    "shf.l.wrap.b32 %4, %4, %4, 12; \n\t"
+    "add.u32 %3,%3,%4; \n\t"
+    "xor.b32 %14,%14,%3; \n\t"
+    "prmt.b32 %14, %14, 0, 0x2103; \n\t"
+    "add.u32 %9,%9,%14; \n\t"
+    "xor.b32 %4,%4,%9; \n\t"
+    "shf.l.wrap.b32 %4, %4, %4, 7; \n\t"
+
+    "}"
+    : "+r"(X[0]), "+r"(X[1]), "+r"(X[2]), "+r"(X[3]), 
+      "+r"(X[4]), "+r"(X[5]), "+r"(X[6]), "+r"(X[7]),
+      "+r"(X[8]), "+r"(X[9]), "+r"(X[10]),"+r"(X[11]),
+      "+r"(X[12]),"+r"(X[13]),"+r"(X[14]),"+r"(X[15])); //, "+r"(X[4]), "+r"(X[5]), "+r"(X[6]), "+r"(X[7])
+}
+static __device__ __inline__ void chacha_step2(uint32_t &a, uint32_t &b, uint32_t &c, uint32_t &d,
+																							 uint32_t &e, uint32_t &f, uint32_t &g, uint32_t &h)
+{
+	asm("{\n\t"
+			".reg .u r0,r1,r2,r3; \n\t"
+			"mov.b64 r0, {%0,%4}; \n\t"
+			"mov.b64 r1, {%1,%5}; \n\t"
+			"mov.b64 r2, {%2,%6}; \n\t"
+			"mov.b64 r3, {%3,%7}; \n\t"
+
+			"add.u64 r0,r0,r1; \n\t"
+	    "xor.b64 r3,r3,r0; \n\t"
+	    "prmt.b64 r3, r3, 0, 0x1032; \n\t"
+
+
+	    "add.u32 %0,%0,%1; \n\t"
+	    "xor.b32 %3,%3,%0; \n\t"
+	    "prmt.b32 %3, %3, 0, 0x1032; \n\t"
+	    "add.u32 %2,%2,%3; \n\t"
+	    "xor.b32 %1,%1,%2; \n\t"
+	    "shf.l.wrap.b32 %1, %1, %1, 12; \n\t"
+	    "add.u32 %0,%0,%1; \n\t"
+	    "xor.b32 %3,%3,%0; \n\t"
+	    "prmt.b32 %3, %3, 0, 0x2103; \n\t"
+	    "add.u32 %2,%2,%3; \n\t"
+	    "xor.b32 %1,%1,%2; \n\t"
+	    "shf.l.wrap.b32 %1, %1, %1, 7; \n\t"
+
+	    "add.u32 %4,%4,%5; \n\t"
+	    "xor.b32 %7,%7,%4; \n\t"
+	    "prmt.b32 %7, %7, 0, 0x1032; \n\t"
+	    "add.u32 %6,%6,%7; \n\t"
+	    "xor.b32 %5,%5,%6; \n\t"
+	    "shf.l.wrap.b32 %5, %5, %5, 12; \n\t"
+	    "add.u32 %4,%4,%5; \n\t"
+	    "xor.b32 %7,%7,%4; \n\t"
+	    "prmt.b32 %7, %7, 0, 0x2103; \n\t"
+	    "add.u32 %6,%6,%7; \n\t"
+	    "xor.b32 %5,%5,%6; \n\t"
+	    "shf.l.wrap.b32 %5, %5, %5, 7; \n\t"
+
+
+	    "}"
+	    : "+r"(a), "+r"(b), "+r"(c), "+r"(d), "+r"(e), "+r"(f), "+r"(g), "+r"(h));
+}
+
 #if __CUDA_ARCH__ >=500
 
 #define CHACHA_STEP(a,b,c,d) { \
@@ -193,16 +421,34 @@ c += d; b = rotate(b^c, 7); \
 
 #define CHACHA_CORE_PARALLEL(state)	 { \
  \
-    CHACHA_STEP(state.lo.s0, state.lo.s4, state.hi.s0, state.hi.s4); \
-    CHACHA_STEP(state.lo.s1, state.lo.s5, state.hi.s1, state.hi.s5); \
-    CHACHA_STEP(state.lo.s2, state.lo.s6, state.hi.s2, state.hi.s6); \
-	CHACHA_STEP(state.lo.s3, state.lo.s7, state.hi.s3, state.hi.s7); \
-	CHACHA_STEP(state.lo.s0, state.lo.s5, state.hi.s2, state.hi.s7); \
-    CHACHA_STEP(state.lo.s1, state.lo.s6, state.hi.s3, state.hi.s4); \
-    CHACHA_STEP(state.lo.s2, state.lo.s7, state.hi.s0, state.hi.s5); \
-	CHACHA_STEP(state.lo.s3, state.lo.s4, state.hi.s1, state.hi.s6); \
+  chacha_step(state.lo.s0, state.lo.s4, state.hi.s0, state.hi.s4); \
+  chacha_step(state.lo.s1, state.lo.s5, state.hi.s1, state.hi.s5); \
+  chacha_step(state.lo.s2, state.lo.s6, state.hi.s2, state.hi.s6); \
+	chacha_step(state.lo.s3, state.lo.s7, state.hi.s3, state.hi.s7); \
+	chacha_step(state.lo.s0, state.lo.s5, state.hi.s2, state.hi.s7); \
+  chacha_step(state.lo.s1, state.lo.s6, state.hi.s3, state.hi.s4); \
+  chacha_step(state.lo.s2, state.lo.s7, state.hi.s0, state.hi.s5); \
+	chacha_step(state.lo.s3, state.lo.s4, state.hi.s1, state.hi.s6); \
 \
-	}
+}
+
+  // chacha_step(state.lo.s2, state.lo.s7, state.hi.s0, state.hi.s5); \
+	// chacha_step(state.lo.s3, state.lo.s4, state.hi.s1, state.hi.s6); \
+
+#define CHACHA_CORE_PARALLEL_B(state)	 { \
+ \
+  chacha_step4((uint32_t*)&state); \
+\
+}
+
+// #define CHACHA_CORE_PARALLEL_B(state)	 { \
+//  \
+//   chacha_step2(state.lo.s0, state.lo.s4, state.hi.s0, state.hi.s4, state.lo.s1, state.lo.s5, state.hi.s1, state.hi.s5); \
+//   chacha_step2(state.lo.s2, state.lo.s6, state.hi.s2, state.hi.s6, state.lo.s3, state.lo.s7, state.hi.s3, state.hi.s7); \
+// 	chacha_step2(state.lo.s0, state.lo.s5, state.hi.s2, state.hi.s7, state.lo.s1, state.lo.s6, state.hi.s3, state.hi.s4); \
+//   chacha_step2(state.lo.s2, state.lo.s7, state.hi.s0, state.hi.s5, state.lo.s3, state.lo.s4, state.hi.s1, state.hi.s6); \
+// \
+// }
 
 #define CHACHA_CORE_PARALLEL2(i0,state)	 { \
  \
@@ -821,7 +1067,7 @@ static __device__ __forceinline__ uint16 chacha_small_parallel_rnd(const uint16 
 	uint16 st = X;
 	#pragma nounroll
 	for (int i = 0; i < 10; ++i) {
-		CHACHA_CORE_PARALLEL(st);
+		CHACHA_CORE_PARALLEL_B(st);
 	}
 	return (X + st);
 }
@@ -1815,14 +2061,17 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 	cudaDeviceSynchronize();
 
 	neoscrypt_gpu_hash_chacha1_stream1 << <grid, block, 0, g_stream[thr_id*2] >> >(threads, startNounce); //salsa
+	gpuErrchk( cudaPeekAtLastError() );
 	neoscrypt_gpu_hash_chacha2_stream1 << <grid, block, 0, g_stream[thr_id*2] >> >(threads, startNounce); //salsa
+	gpuErrchk( cudaPeekAtLastError() );
 
 	// neoscrypt_gpu_hash_salsa1_stream1_merge << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
 	// neoscrypt_gpu_hash_salsa1_stream1 << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
 	neoscrypt_gpu_hash_salsa1_stream1_orig << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
+	gpuErrchk( cudaPeekAtLastError() );
 	// neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, g_stream[thr_id*2+1] >> >(threads, startNounce, d_time[thr_id]); //chacha
 	neoscrypt_gpu_hash_salsa2_stream1 << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
-	// gpuErrchk( cudaPeekAtLastError() );
+	gpuErrchk( cudaPeekAtLastError() );
 
 	cudaDeviceSynchronize();
 	// cudaStreamDestroy(g_stream[thr_id*2+1]); //will do the synchronization
