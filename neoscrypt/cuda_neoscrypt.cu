@@ -40,6 +40,9 @@ uint32_t *d_NNonce[MAX_GPUS];
 uint32_t *d_nnounce[MAX_GPUS];
 unsigned long long *d_time[MAX_GPUS];
 
+// Global streams array:
+cudaStream_t g_stream[MAX_GPUS*2];
+
 __constant__  uint32_t pTarget[8];
 __constant__  uint32_t key_init[16];
 __constant__  uint32_t input_init[16];
@@ -815,27 +818,28 @@ static __forceinline__ __device__ uint16 salsa_small_scalar_rnd(const uint16 &X)
 
 static __device__ __forceinline__ uint16 chacha_small_parallel_rnd(const uint16 &X)
 {
-
 	uint16 st = X;
-#pragma nounroll
-	for (int i = 0; i < 10; ++i) {CHACHA_CORE_PARALLEL(st);}
+	#pragma nounroll
+	for (int i = 0; i < 10; ++i) {
+		CHACHA_CORE_PARALLEL(st);
+	}
 	return (X + st);
 }
 
 
 static __device__ __forceinline__ void neoscrypt_chacha(uint16 *XV)
 {
-
 	XV[0] ^= XV[3];
 	uint16 temp;
 
-	XV[0] = chacha_small_parallel_rnd(XV[0]); XV[1] ^= XV[0];
-	temp = chacha_small_parallel_rnd(XV[1]); XV[2] ^= temp;
-	XV[1] = chacha_small_parallel_rnd(XV[2]); XV[3] ^= XV[1];
+	XV[0] = chacha_small_parallel_rnd(XV[0]); 
+	XV[1] ^= XV[0];
+	temp = chacha_small_parallel_rnd(XV[1]); 
+	XV[2] ^= temp;
+	XV[1] = chacha_small_parallel_rnd(XV[2]); 
+	XV[3] ^= XV[1];
 	XV[3] = chacha_small_parallel_rnd(XV[3]);
 	XV[2] = temp;
-
-
 }
 
 static __device__ __forceinline__ void neoscrypt_salsa(uint16 *XV)
@@ -1768,6 +1772,11 @@ void neoscrypt_cpu_init_2stream(int thr_id, int threads, uint32_t *hash, uint32_
 
 	cudaMalloc(&d_NNonce[thr_id], sizeof(uint32_t));
 	cudaMalloc(&d_time[thr_id], sizeof(unsigned long long));
+
+	// Create the streams:
+	cudaStreamCreate(&g_stream[thr_id*2]);
+	cudaStreamCreate(&g_stream[thr_id*2+1]);
+
 }
 
 #define gpuErrchk(ans) { gpuAssert((ans), __FILE__, __LINE__); }
@@ -1799,30 +1808,25 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 	dim3 grid3((threads + threadsperblock3 - 1) / threadsperblock3);
 	dim3 block3(threadsperblock3);
 
-	cudaStream_t stream[2];
-	cudaStreamCreate(&stream[0]);
-	cudaStreamCreate(&stream[1]);
-
-
 	//	neoscrypt_gpu_hash_orig << <grid, block >> >(threads, startNounce, d_NNonce[thr_id]);
 
-	neoscrypt_gpu_hash_start << <grid2, block2, 0, stream[0] >> >(stratum, threads, startNounce); //fastkdf
+	neoscrypt_gpu_hash_start << <grid2, block2, 0, g_stream[thr_id*2] >> >(stratum, threads, startNounce); //fastkdf
 
 	cudaDeviceSynchronize();
 
-	neoscrypt_gpu_hash_chacha1_stream1 << <grid, block, 0, stream[0] >> >(threads, startNounce); //salsa
-	neoscrypt_gpu_hash_chacha2_stream1 << <grid, block, 0, stream[0] >> >(threads, startNounce); //salsa
+	neoscrypt_gpu_hash_chacha1_stream1 << <grid, block, 0, g_stream[thr_id*2] >> >(threads, startNounce); //salsa
+	neoscrypt_gpu_hash_chacha2_stream1 << <grid, block, 0, g_stream[thr_id*2] >> >(threads, startNounce); //salsa
 
-	// neoscrypt_gpu_hash_salsa1_stream1_merge << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
-	// neoscrypt_gpu_hash_salsa1_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
-	neoscrypt_gpu_hash_salsa1_stream1_orig << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
-	// neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, stream[1] >> >(threads, startNounce, d_time[thr_id]); //chacha
-	neoscrypt_gpu_hash_salsa2_stream1 << <grid, block, 0, stream[1] >> >(threads, startNounce); //chacha
+	// neoscrypt_gpu_hash_salsa1_stream1_merge << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
+	// neoscrypt_gpu_hash_salsa1_stream1 << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
+	neoscrypt_gpu_hash_salsa1_stream1_orig << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
+	// neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, g_stream[thr_id*2+1] >> >(threads, startNounce, d_time[thr_id]); //chacha
+	neoscrypt_gpu_hash_salsa2_stream1 << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
 	// gpuErrchk( cudaPeekAtLastError() );
 
-//	cudaDeviceSynchronize();
-	cudaStreamDestroy(stream[1]); //will do the synchronization
-	neoscrypt_gpu_hash_ending << <grid2, block2, 0, stream[0] >> >(stratum, threads, startNounce, d_NNonce[thr_id]); //fastkdf+end
+	cudaDeviceSynchronize();
+	// cudaStreamDestroy(g_stream[thr_id*2+1]); //will do the synchronization
+	neoscrypt_gpu_hash_ending << <grid2, block2, 0, g_stream[thr_id*2] >> >(stratum, threads, startNounce, d_NNonce[thr_id]); //fastkdf+end
 
 
 	MyStreamSynchronize(NULL, order, thr_id);
@@ -1830,7 +1834,7 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 
 	cudaMemcpy(&tres, d_time[thr_id], sizeof(unsigned long long), cudaMemcpyDeviceToHost);
 
-	cudaStreamDestroy(stream[0]);
+	// cudaStreamDestroy(g_stream[thr_id*2]);
 
 
 	return result[thr_id];
