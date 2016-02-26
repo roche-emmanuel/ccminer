@@ -559,7 +559,14 @@ c += d; b = rotate(b^c, 7); \
 
 #define CHACHA_CORE_PARALLEL_B(state)	 { \
  \
-  chacha_step4((uint32_t*)&state); \
+  chacha_step3((uint32_t*)&state); \
+  chacha_step(state.lo.s1, state.lo.s5, state.hi.s1, state.hi.s5); \
+  chacha_step(state.lo.s2, state.lo.s6, state.hi.s2, state.hi.s6); \
+	chacha_step(state.lo.s3, state.lo.s7, state.hi.s3, state.hi.s7); \
+	chacha_step(state.lo.s0, state.lo.s5, state.hi.s2, state.hi.s7); \
+  chacha_step(state.lo.s1, state.lo.s6, state.hi.s3, state.hi.s4); \
+  chacha_step(state.lo.s2, state.lo.s7, state.hi.s0, state.hi.s5); \
+	chacha_step(state.lo.s3, state.lo.s4, state.hi.s1, state.hi.s6); \
 \
 }
 
@@ -1187,11 +1194,11 @@ static __forceinline__ __device__ uint16 salsa_small_scalar_rnd(const uint16 &X)
 static __device__ __forceinline__ uint16 chacha_small_parallel_rnd(const uint16 &X)
 {
 	uint16 st = X;
-	// #pragma nounroll
-	// for (int i = 0; i < 10; ++i) {
-	// 	CHACHA_CORE_PARALLEL(st)
-	// }
-	chacha_step4((uint32_t*)&st);
+	#pragma nounroll
+	for (int i = 0; i < 10; ++i) {
+		CHACHA_CORE_PARALLEL(st)
+	}
+	// chacha_step4((uint32_t*)&st);
 
 	return (X + st);
 }
@@ -2194,6 +2201,8 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 	neoscrypt_gpu_hash_salsa1_stream1_orig << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
 	gpuErrchk( cudaPeekAtLastError() );
 	// neoscrypt_gpu_hash_salsa1_stream1_opt << <grid3, block3, 0, g_stream[thr_id*2+1] >> >(threads, startNounce, d_time[thr_id]); //chacha
+	// gpuErrchk( cudaPeekAtLastError() );
+
 	neoscrypt_gpu_hash_salsa2_stream1 << <grid, block, 0, g_stream[thr_id*2+1] >> >(threads, startNounce); //chacha
 	gpuErrchk( cudaPeekAtLastError() );
 
@@ -2205,7 +2214,7 @@ __host__ uint32_t neoscrypt_cpu_hash_k4_2stream(int stratum, int thr_id, int thr
 	MyStreamSynchronize(NULL, order, thr_id);
 	cudaMemcpy(&result[thr_id], d_NNonce[thr_id], sizeof(uint32_t), cudaMemcpyDeviceToHost);
 
-	cudaMemcpy(&tres, d_time[thr_id], sizeof(unsigned long long), cudaMemcpyDeviceToHost);
+	// cudaMemcpy(&tres, d_time[thr_id], sizeof(unsigned long long), cudaMemcpyDeviceToHost);
 
 	// cudaStreamDestroy(g_stream[thr_id*2]);
 
